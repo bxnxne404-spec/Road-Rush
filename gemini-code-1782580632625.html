@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Road Rush</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#fff;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;touch-action:none;user-select:none}
+canvas{display:block}
+#loading{position:fixed;inset:0;background:#f5f5f0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;gap:0;pointer-events:all}
+.logo{font-size:62px;font-weight:900;letter-spacing:-3px;color:#222;line-height:1;position:relative;z-index:2}
+.logo-sub{font-size:12px;letter-spacing:5px;color:#aaa;text-transform:uppercase;margin-top:8px;position:relative;z-index:2}
+#start-btn{margin-top:38px;background:#ff5c5c;color:#fff;border:none;border-radius:50px;padding:15px 56px;font-size:17px;font-weight:800;cursor:pointer;letter-spacing:0.5px;box-shadow:0 6px 22px rgba(255,92,92,0.35);transition:transform .12s;font-family:inherit;position:relative;z-index:2}
+#start-btn:hover{transform:scale(1.06)}
+.hint{margin-top:16px;font-size:11px;color:#ccc;letter-spacing:1px;position:relative;z-index:2}
+#loading-canvas{position:absolute;inset:0;z-index:1}
+#hud{position:fixed;top:0;left:0;right:0;height:52px;display:none;align-items:center;justify-content:space-between;padding:0 16px;z-index:100;pointer-events:none}
+.chip{background:#fff;border-radius:20px;padding:5px 13px;font-size:13px;font-weight:700;color:#333;box-shadow:0 2px 10px rgba(0,0,0,0.1);display:flex;align-items:center;gap:6px;pointer-events:all;cursor:default}
+.chip.clickable{cursor:pointer}
+.chip.clickable:hover{box-shadow:0 2px 14px rgba(0,0,0,0.15)}
+#ctrl{position:fixed;bottom:0;left:0;right:0;display:none;align-items:center;justify-content:center;gap:8px;padding:8px 12px 13px;z-index:100}
+.tbtn{background:#fff;border:2px solid #eee;border-radius:12px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;color:#555;font-family:inherit;letter-spacing:0.3px;transition:all .1s;display:flex;align-items:center;gap:5px}
+.tbtn:hover{border-color:#ccc}
+.tbtn.on{border-color:#4e9fff;color:#4e9fff;background:#f0f8ff}
+#overlay{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:300;background:rgba(255,255,255,0.97)}
+#overlay h2{font-size:42px;font-weight:900;color:#222}
+#overlay .sub{font-size:15px;color:#aaa;margin-top:6px}
+#overlay .big{font-size:28px;font-weight:900;color:#ff5c5c;margin-top:14px}
+#overlay button{margin-top:20px;background:#ff5c5c;color:#fff;border:none;border-radius:50px;padding:13px 46px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit}
+#week-panel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:250;background:rgba(255,255,255,0.96)}
+.wp{background:#fff;border-radius:24px;padding:38px 48px;box-shadow:0 12px 50px rgba(0,0,0,0.1);display:flex;flex-direction:column;align-items:center;gap:18px}
+.wp h3{font-size:11px;letter-spacing:4px;color:#bbb;text-transform:uppercase}
+.wp .wn{font-size:46px;font-weight:900;color:#222;line-height:1}
+.wp p{font-size:14px;color:#999}
+.rrow{display:flex;gap:12px}
+.rc{display:flex;flex-direction:column;align-items:center;gap:9px;border:2px solid #eee;border-radius:16px;padding:18px 16px;cursor:pointer;transition:all .15s;min-width:100px}
+.rc:hover{border-color:#ff5c5c;background:#fff8f8;transform:translateY(-3px)}
+.rc .ri{font-size:28px}
+.rc .rl{font-size:10px;letter-spacing:1px;color:#aaa;text-transform:uppercase;font-weight:700}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <canvas id="loading-canvas"></canvas>
+  <div class="logo">Road Rush</div>
+  <div class="logo-sub">City Traffic</div>
+  <button id="start-btn" onclick="startGame()">Play</button>
+  <div class="hint">Draw roads · Match colours · Grow your city</div>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="chip">🚗 <span id="hud-cars">0</span></div>
+  <div class="chip">📅 Week <span id="hud-week">1</span></div>
+  <div class="chip">🛣️ <span id="hud-roads">80</span></div>
+  <div class="chip">🌉 <span id="hud-bridges">40</span></div>
+  <div class="chip">🏎️ <span id="hud-motorways">1</span></div>
+  <div class="chip clickable" onclick="cycleSpeed()">⏩ <span id="hud-speed">1×</span></div>
+</div>
+
+<div id="ctrl">
+  <button class="tbtn on" id="btn-road"      onclick="setTool('road')">🛣️ Road</button>
+  <button class="tbtn"    id="btn-bridge"    onclick="setTool('bridge')">🌉 Bridge</button>
+  <button class="tbtn"    id="btn-motorway"  onclick="setTool('motorway')">🏎️ Motorway</button>
+  <button class="tbtn"    id="btn-delete"    onclick="setTool('delete')">🗑️ Delete</button>
+  <button class="tbtn"    id="btn-pause"     onclick="togglePause()">⏸ Pause</button>
+</div>
+
+<div id="overlay">
+  <h2>City Shutdown</h2>
+  <div class="sub">Not enough cars reached their destination in time</div>
+  <div class="big"><span id="go-cars">0</span> journeys made</div>
+  <div class="sub">Week <span id="go-week">1</span> · <span id="go-days">0</span> days survived</div>
+  <button onclick="location.reload()">Play Again</button>
+</div>
+
+<div id="week-panel">
+  <div class="wp">
+    <h3>End of week</h3>
+    <div class="wn" id="wp-num">1</div>
+    <p>New supplies! Pick one:</p>
+    <div class="rrow" id="rrow"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  ROAD RUSH  —  Complete rewrite
+// ══════════════════════════════════════════════
+
+// ── LOADING SCREEN: DRIFTING CAR ─────────────
+const lcanvas = document.getElementById('loading-canvas');
+const lctx    = lcanvas.getContext('2d');
+let LW, LH;
+function resizeL(){
+  LW = lcanvas.width  = window.innerWidth;
+  LH = lcanvas.height = window.innerHeight;
+}
+resizeL();
+window.addEventListener('resize', resizeL);
+
+const drift = {
+  x: 200, y: 300,
+  vx: 0, vy: 0,
+  angle: 0,        // facing direction
+  targetAngle: 0,
+  speed: 0,
+  trail: [],
+  mx: 400, my: 300  // mouse/touch target
+};
+
+document.addEventListener('mousemove', e => { drift.mx = e.clientX; drift.my = e.clientY; });
+document.addEventListener('touchmove', e => {
+  drift.mx = e.touches[0].clientX;
+  drift.my = e.touches[0].clientY;
+}, {passive:true});
+
+function updateDriftCar(){
+  const dx = drift.mx - drift.x;
+  const dy = drift.my - drift.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+
+  if(dist > 8){
+    drift.targetAngle = Math.atan2(dy, dx);
+    drift.speed = Math.min(dist * 0.08, 7);
+  } else {
+    drift.speed *= 0.92;
+  }
+
+  // Drift: smoothly rotate toward target with a lag (creates drift feel)
+  let da = drift.targetAngle - drift.angle;
+  // Wrap angle
+  while(da >  Math.PI) da -= Math.PI*2;
+  while(da < -Math.PI) da += Math.PI*2;
+  drift.angle += da * 0.12;  // slow turn = drifty
+
+  drift.x += Math.cos(drift.angle) * drift.speed;
+  drift.y += Math.sin(drift.angle) * drift.speed;
+
+  // Skid trail based on sideways velocity
+  const sideways = Math.abs(da) * drift.speed;
+  if(sideways > 0.3 && drift.speed > 1){
+    drift.trail.push({x: drift.x, y: drift.y, a: sideways * 0.3});
+  }
+  if(drift.trail.length > 80) drift.trail.shift();
+}
+
+function drawLoadingCar(){
+  // Clear
+  lctx.fillStyle = '#f5f5f0';
+  lctx.fillRect(0, 0, LW, LH);
+
+  // Skid marks
+  for(let i = 1; i < drift.trail.length; i++){
+    const t = drift.trail[i];
+    const prev = drift.trail[i-1];
+    lctx.globalAlpha = Math.min(t.a * (i/drift.trail.length) * 0.5, 0.25);
+    lctx.strokeStyle = '#ccc';
+    lctx.lineWidth = 3;
+    lctx.lineCap = 'round';
+    lctx.beginPath();
+    lctx.moveTo(prev.x, prev.y);
+    lctx.lineTo(t.x, t.y);
+    lctx.stroke();
+  }
+  lctx.globalAlpha = 1;
+
+  // Car body
+  lctx.save();
+  lctx.translate(drift.x, drift.y);
+  lctx.rotate(drift.angle);
+
+  const W2 = 36, H2 = 16;
+
+  // Shadow
+  lctx.fillStyle = 'rgba(0,0,0,0.13)';
+  rrect(lctx, -W2/2+3, -H2/2+4, W2, H2, 6, true);
+
+  // Body
+  lctx.fillStyle = '#ff5c5c';
+  rrect(lctx, -W2/2, -H2/2, W2, H2, 6, true);
+
+  // Windshield
+  lctx.fillStyle = 'rgba(180,225,255,0.9)';
+  rrect(lctx, W2*0.08, -H2*0.38, W2*0.28, H2*0.76, 3, true);
+
+  // Wheels
+  lctx.fillStyle = '#222';
+  [[-W2*0.25, -H2/2-2],[W2*0.08, -H2/2-2],[-W2*0.25, H2/2-2],[W2*0.08, H2/2-2]]
+    .forEach(([wx,wy]) => lctx.fillRect(wx, wy, W2*0.18, 4));
+
+  lctx.restore();
+}
+
+// ── GAME CANVAS ───────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let W, H;
+function resizeGame(){
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resizeGame();
+window.addEventListener('resize', () => { resizeGame(); if(G) G.rebuild(); });
+
+// ── PALETTE ───────────────────────────────────
+// Each colour pair: [house fill, shop fill, car colour]
+const COLOUR_SETS = [
+  { h:'#ff5c5c', hs:'#c93a3a', s:'#ff5c5c', ss:'#c93a3a', car:'#ff5c5c', name:'Red'    },
+  { h:'#ff9a3c', hs:'#d06e1a', s:'#ff9a3c', ss:'#d06e1a', car:'#ff9a3c', name:'Orange' },
+  { h:'#f7d94c', hs:'#c8a800', s:'#f7d94c', ss:'#c8a800', car:'#f7d94c', name:'Yellow' },
+  { h:'#5bca6e', hs:'#2d8c40', s:'#5bca6e', ss:'#2d8c40', car:'#5bca6e', name:'Green'  },
+  { h:'#4e9fff', hs:'#1a63c8', s:'#4e9fff', ss:'#1a63c8', car:'#4e9fff', name:'Blue'   },
+  { h:'#b57bee', hs:'#7c3cc4', s:'#b57bee', ss:'#7c3cc4', car:'#b57bee', name:'Purple' },
+  { h:'#ff80c0', hs:'#cc3d84', s:'#ff80c0', ss:'#cc3d84', car:'#ff80c0', name:'Pink'   },
+];
+
+// Road visuals
+const ROAD_FILL  = '#f4c2c2';
+const ROAD_EDGE  = '#e89090';
+const MWAY_FILL  = '#ffe08a';
+const MWAY_EDGE  = '#f5c030';
+const BRDG_FILL  = '#b0c8de';
+const BRDG_EDGE  = '#7898b8';
+const WATER_FILL = '#7ecae3';
+const WATER_EDGE = '#5ab5d5';
+const BG         = '#f5f5f0';
+
+// ── GRID ──────────────────────────────────────
+let CELL = 58;          // current cell size — shrinks over time
+let CELL_TARGET = 58;   // what we're zooming toward
+const CELL_START = 58;  // starting cell size
+const CELL_MIN   = 28;  // minimum cell size (max zoom out)
+let COLS, ROWS, OX, OY;
+
+function setupGrid(){
+  COLS = Math.floor((W - 20) / CELL);
+  ROWS = Math.floor((H - 110) / CELL);
+  OX   = Math.floor((W - COLS * CELL) / 2);
+  OY   = 56;
+}
+
+const gx  = c  => OX + c  * CELL + CELL/2;
+const gy  = r  => OY + r  * CELL + CELL/2;
+const gc  = px => Math.floor((px - OX) / CELL);
+const gr  = py => Math.floor((py - OY) / CELL);
+const nk  = (r,c) => `${r},${c}`;
+function ek(r1,c1,r2,c2){
+  const a=nk(r1,c1), b=nk(r2,c2);
+  return a<b ? `${a}|${b}` : `${b}|${a}`;
+}
+function inB(r,c){ return r>=0&&c>=0&&r<ROWS&&c<COLS; }
+
+// ── HELPERS ───────────────────────────────────
+function rrect(ctx,x,y,w,h,r,fill){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+  if(fill) ctx.fill(); else ctx.stroke();
+}
+
+// ── GAME STATE ────────────────────────────────
+let G = null, activeTool='road', gameSpeed=1, isPaused=false, gameRunning=false;
+let dragCells=[], isDragging=false;
+// Motorway freehand drawing state
+let mwDrawPts=[], mwDrawing=false, mwMousePos=null;
+
+class Game {
+  constructor(){
+    setupGrid();
+    this.week      = 1;
+    this.totalDays = 0;
+    this.weekDay   = 0;
+    this.dayTimer  = 0;
+    this.dayLen    = 100/7; // 100 seconds per week
+    this.weekLen   = 7;
+    this.roadsLeft    = 80;  // normal road tiles
+    this.bridgesLeft  = 1;   // each = 1 full bridge segment
+    this.motorwaysLeft= 0;   // each = 1 full motorway segment
+    this.delivered = 0;
+    this.over      = false;
+    this.frame     = 0;
+    this.spawnT    = 0;
+    this.growT     = 28;
+    this.particles = [];
+    this.roads     = new Map();   // edgeKey → {type}
+    this.adj       = new Map();   // nodeKey → Set<nodeKey>
+    this.buildings = [];          // {id,type,colIdx,row,col,...}
+    this.vehicles  = [];
+    this.rivers    = [];
+    this.motorways = []; // [{id, pts:[{x,y},...], mwVehicles:[]}]
+    this.mwDragging= false; // currently drawing a motorway
+    this.mwPreview = null;  // {pts} while drawing
+
+    // Generate wavy rivers — stored as pixel-space paths, drawn infinite
+    const numRivers = Math.floor(Math.random()*2)+1;
+    for(let i=0;i<numRivers;i++){
+      const baseRow = 2 + Math.floor(Math.random()*(ROWS-4));
+      // Random wave params
+      const amp   = (0.4 + Math.random()*0.8) * CELL; // pixel amplitude
+      const freq  = 0.003 + Math.random()*0.004;       // horizontal frequency
+      const phase = Math.random()*Math.PI*2;
+      const width = CELL * (0.7 + Math.random()*0.5);  // river width px
+      this.rivers.push({ baseRow, amp, freq, phase, width,
+        baseY: OY + baseRow*CELL + CELL/2 });
+    }
+
+    // Seed buildings — ensure each colour gets 1 house + 1 shop
+    // Place pairs spaced apart
+    const pairs = [
+      [2,2, ROWS-3,COLS-3],
+      [2,COLS-3, ROWS-3,2],
+    ];
+    pairs.forEach(([hr,hc,sr,sc],i)=>{
+      if(i < COLOUR_SETS.length){
+        this._placeBuilding('house',hr,hc,i);
+        this._placeBuilding('shop', sr,sc,i);
+      }
+    });
+    // A third pair in the centre area
+    this._placeBuilding('house', Math.floor(ROWS/2)-1, 2, 2);
+    this._placeBuilding('shop',  Math.floor(ROWS/2)-1, COLS-3, 2);
+  }
+
+  rebuild(){ setupGrid(); }
+
+  // ── BUILDINGS ────────────────────────────────
+  _placeBuilding(type, row, col, colIdx, force){
+    if(!inB(row,col)) return false;
+    if(!force && this._bAt(row,col)) return false;
+    this.buildings.push({
+      id: Math.random().toString(36).slice(2),
+      type, row, col, colIdx,
+      demand:       type==='shop'||type==='imax' ? 2 : 0,
+      maxDemand:    type==='imax' ? 15 : type==='shop' ? 12 : 0,
+      overflowOn:   false,
+      overflowT:    12,
+      pulse:        0,
+      spawnReady:   type==='house',
+      spawnT:       Math.random()*0.5, // stagger starts so houses dont all fire at once
+      upgrading:    false,
+      upgradeT:     0,
+    });
+    return true;
+  }
+  _bAt(r,c){ return this.buildings.find(b=>b.row===r&&b.col===c); }
+
+  // Find all buildings of a type+colour
+  _bOfType(type,ci){ return this.buildings.filter(b=>b.type===type&&b.colIdx===ci); }
+
+  // ── ROADS ─────────────────────────────────────
+  _crossesRiver(r1,c1,r2,c2){
+    // Check if the line segment between two cells crosses a wavy river
+    const steps=6;
+    for(let i=0;i<=steps;i++){
+      const t=i/steps;
+      const pr=r1+(r2-r1)*t, pc=c1+(c2-c1)*t;
+      const px=OX+pc*CELL+CELL/2, py=OY+pr*CELL+CELL/2;
+      for(const rv of this.rivers){
+        const centerY=rv.baseY+rv.amp*Math.sin(rv.freq*px+rv.phase);
+        if(Math.abs(py-centerY)<rv.width/2) return true;
+      }
+    }
+    return false;
+  }
+
+  addRoad(r1,c1,r2,c2,type){
+    if(Math.abs(r1-r2)>1||Math.abs(c1-c2)>1||r1===r2&&c1===c2) return false;
+    const key=ek(r1,c1,r2,c2);
+    if(this.roads.has(key)) return false;
+
+    const crossesWater=this._crossesRiver(r1,c1,r2,c2);
+
+    // Enforce terrain rules
+    if(type==='bridge'){
+      if(!crossesWater) return 'bridgeOnLand';   // bridge must cross water
+    } else {
+      // normal road
+      if(crossesWater) return 'needBridge';
+    }
+
+    // Check correct counter has stock
+    if(type==='bridge'){
+      if(this.bridgesLeft<=0) return 'noBridges';
+    } else {
+      if(this.roadsLeft<=0) return 'noRoads';
+    }
+
+    this.roads.set(key,{type});
+    const a=nk(r1,c1), b=nk(r2,c2);
+    if(!this.adj.has(a)) this.adj.set(a,new Set());
+    if(!this.adj.has(b)) this.adj.set(b,new Set());
+    this.adj.get(a).add(b);
+    this.adj.get(b).add(a);
+    return true;
+  }
+
+  removeRoad(r1,c1,r2,c2){
+    const key=ek(r1,c1,r2,c2);
+    if(!this.roads.has(key)) return null;
+    const type=this.roads.get(key).type;
+    this.roads.delete(key);
+    const a=nk(r1,c1), b=nk(r2,c2);
+    this.adj.get(a)?.delete(b);
+    this.adj.get(b)?.delete(a);
+    return type; // caller refunds the right counter
+  }
+
+  _neighbors(r,c){
+    const s=this.adj.get(nk(r,c));
+    if(!s) return [];
+    return [...s].map(k=>{const[rr,cc]=k.split(',').map(Number);return{r:rr,c:cc};});
+  }
+
+  // ── BFS ─────────────────────────────────────
+  _path(sr,sc,tr,tc){
+    if(sr===tr&&sc===tc) return [];
+    const vis=new Set([nk(sr,sc)]);
+    const q=[[sr,sc,[{r:sr,c:sc}]]];
+    while(q.length){
+      const[r,c,path]=q.shift();
+      for(const n of this._neighbors(r,c)){
+        const k=nk(n.r,n.c);
+        if(vis.has(k)) continue;
+        const np=[...path,n];
+        if(n.r===tr&&n.c===tc) return np;
+        vis.add(k); q.push([n.r,n.c,np]);
+      }
+    }
+    return null;
+  }
+
+  // ── SPAWN ────────────────────────────────────
+  // Each house has its own 0.667 s cooldown → 1.5 cars per second per house
+  _tickHouseSpawns(dt){
+    if(this.vehicles.length>=60) return;
+    this.buildings.forEach(h=>{
+      if(h.type!=='house') return;
+      h.spawnT-=dt;
+      if(h.spawnT>0) return;
+      h.spawnT=1.0;   // 1.0 s interval = 1 car/sec
+      const dests=this.buildings.filter(b=>
+        (b.type==='shop'||b.type==='imax')&&b.colIdx===h.colIdx&&b.demand>0
+      );
+      for(const d of dests){
+        const path=this._path(h.row,h.col,d.row,d.col);
+        if(path&&path.length>1){
+          const rt=this.roads.get(ek(path[0].r,path[0].c,path[1].r,path[1].c));
+          const col=COLOUR_SETS[h.colIdx]||COLOUR_SETS[0];
+          this.vehicles.push({
+            id:Math.random().toString(36).slice(2),
+            colIdx:h.colIdx, path, pidx:1,
+            x:gx(h.col), y:gy(h.row),
+            tx:gx(path[1].c), ty:gy(path[1].r),
+            angle:Math.random()*Math.PI*2,
+            carColor:col.car,
+            speed:82,
+            dst:d, done:false,
+          });
+          return;
+        }
+      }
+    });
+  }
+
+  // ── UPDATE ────────────────────────────────────
+  update(dt){
+    if(this.over||isPaused) return;
+    dt*=gameSpeed;
+    this.frame++;
+    this.dayTimer+=dt;
+    this.growT-=dt;
+
+    // Day
+    if(this.dayTimer>=this.dayLen){
+      this.dayTimer-=this.dayLen;
+      this.totalDays++;
+      this.weekDay++;
+      this.buildings.filter(b=>b.type==='house').forEach(b=>b.spawnReady=true);
+      if(this.weekDay>=this.weekLen){ this.weekDay=0; this._newWeek(); }
+    }
+
+    // Per-house spawn tick — each house independently emits 1 car/sec
+    this._tickHouseSpawns(dt);
+
+    // Smooth zoom-out: starts at week 3, continuous, never stops
+    if(this.week >= 3){
+      // Each week past 2, nudge target down a little further
+      const weeksZooming = this.week - 2;
+      // Target shrinks by ~2px per week, floored at CELL_MIN
+      CELL_TARGET = Math.max(CELL_MIN, CELL_START - weeksZooming * 2);
+    }
+    // Always lerp CELL toward CELL_TARGET — consistent, smooth
+    if(Math.abs(CELL - CELL_TARGET) > 0.01){
+      CELL += (CELL_TARGET - CELL) * Math.min(1, dt * 0.8); // smooth lerp
+      setupGrid();
+      this.rivers.forEach(rv=>{ rv.baseY = OY + rv.baseRow * CELL + CELL/2; });
+    }
+
+    // City grow
+    if(this.growT<=0){
+      this.growT=Math.max(14,30-this.week*2);
+      this._grow();
+    }
+
+    // Buildings
+    this.buildings.forEach(b=>{
+      b.pulse=Math.max(0,b.pulse-dt*3);
+      // house spawn timing now handled in _tickHouseSpawns
+      if(b.type==='shop'||b.type==='imax'){
+        // Demand slowly climbs (slightly slower for easier play)
+        const rate=(b.type==='imax'?0.048:0.028)*this.week;
+        b.demand=Math.min(b.maxDemand,b.demand+dt*rate);
+
+        // Overflow at >12
+        if(b.demand>=12&&!b.overflowOn){
+          b.overflowOn=true; b.overflowT=12;
+        }
+        if(b.overflowOn){
+          b
