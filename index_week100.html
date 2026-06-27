@@ -1,0 +1,1040 @@
+cat > /mnt/user-data/outputs/road-rush-3.html << 'ENDOFFILE'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Road Rush</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#fff;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;touch-action:none;user-select:none}
+canvas{display:block}
+#loading{position:fixed;inset:0;background:#f5f5f0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;gap:0;pointer-events:all}
+.logo{font-size:62px;font-weight:900;letter-spacing:-3px;color:#222;line-height:1;position:relative;z-index:2}
+.logo-sub{font-size:12px;letter-spacing:5px;color:#aaa;text-transform:uppercase;margin-top:8px;position:relative;z-index:2}
+#start-btn{margin-top:38px;background:#ff5c5c;color:#fff;border:none;border-radius:50px;padding:15px 56px;font-size:17px;font-weight:800;cursor:pointer;letter-spacing:0.5px;box-shadow:0 6px 22px rgba(255,92,92,0.35);transition:transform .12s;font-family:inherit;position:relative;z-index:2}
+#start-btn:hover{transform:scale(1.06)}
+.hint{margin-top:16px;font-size:11px;color:#ccc;letter-spacing:1px;position:relative;z-index:2}
+#loading-canvas{position:absolute;inset:0;z-index:1}
+#hud{position:fixed;top:0;left:0;right:0;height:52px;display:none;align-items:center;justify-content:space-between;padding:0 16px;z-index:100;pointer-events:none}
+.chip{background:#fff;border-radius:20px;padding:5px 13px;font-size:13px;font-weight:700;color:#333;box-shadow:0 2px 10px rgba(0,0,0,0.1);display:flex;align-items:center;gap:6px;pointer-events:all;cursor:default}
+.chip.clickable{cursor:pointer}
+.chip.clickable:hover{box-shadow:0 2px 14px rgba(0,0,0,0.15)}
+#ctrl{position:fixed;bottom:0;left:0;right:0;display:none;align-items:center;justify-content:center;gap:8px;padding:8px 12px 13px;z-index:100}
+.tbtn{background:#fff;border:2px solid #eee;border-radius:12px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;color:#555;font-family:inherit;letter-spacing:0.3px;transition:all .1s;display:flex;align-items:center;gap:5px}
+.tbtn:hover{border-color:#ccc}
+.tbtn.on{border-color:#4e9fff;color:#4e9fff;background:#f0f8ff}
+#overlay{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:300;background:rgba(255,255,255,0.97)}
+#overlay h2{font-size:42px;font-weight:900;color:#222}
+#overlay .sub{font-size:15px;color:#aaa;margin-top:6px}
+#overlay .big{font-size:28px;font-weight:900;color:#ff5c5c;margin-top:14px}
+#overlay button{margin-top:20px;background:#ff5c5c;color:#fff;border:none;border-radius:50px;padding:13px 46px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit}
+#week-panel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:250;background:rgba(255,255,255,0.96)}
+.wp{background:#fff;border-radius:24px;padding:38px 48px;box-shadow:0 12px 50px rgba(0,0,0,0.1);display:flex;flex-direction:column;align-items:center;gap:18px}
+.wp h3{font-size:11px;letter-spacing:4px;color:#bbb;text-transform:uppercase}
+.wp .wn{font-size:46px;font-weight:900;color:#222;line-height:1}
+.wp p{font-size:14px;color:#999}
+.rrow{display:flex;gap:12px}
+.rc{display:flex;flex-direction:column;align-items:center;gap:9px;border:2px solid #eee;border-radius:16px;padding:18px 16px;cursor:pointer;transition:all .15s;min-width:100px}
+.rc:hover{border-color:#ff5c5c;background:#fff8f8;transform:translateY(-3px)}
+.rc .ri{font-size:28px}
+.rc .rl{font-size:10px;letter-spacing:1px;color:#aaa;text-transform:uppercase;font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- Loading screen with its own canvas -->
+<div id="loading">
+  <canvas id="loading-canvas"></canvas>
+  <div class="logo">Road Rush</div>
+  <div class="logo-sub">City Traffic</div>
+  <button id="start-btn" onclick="startGame()">Play</button>
+  <div class="hint">Draw roads · Match colours · Grow your city</div>
+</div>
+
+<!-- Game canvas -->
+<canvas id="c"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="chip">🚗 <span id="hud-cars">0</span></div>
+  <div class="chip">📅 Week <span id="hud-week">1</span></div>
+  <div class="chip">🛣️ <span id="hud-tiles">40</span></div>
+  <div class="chip clickable" onclick="cycleSpeed()">⏩ <span id="hud-speed">1×</span></div>
+</div>
+
+<!-- Controls -->
+<div id="ctrl">
+  <button class="tbtn on" id="btn-road"      onclick="setTool('road')">🛣️ Road</button>
+  <button class="tbtn"    id="btn-bridge"    onclick="setTool('bridge')">🌉 Bridge</button>
+  <button class="tbtn"    id="btn-motorway"  onclick="setTool('motorway')">🏎️ Motorway</button>
+  <button class="tbtn"    id="btn-delete"    onclick="setTool('delete')">🗑️ Delete</button>
+  <button class="tbtn"    id="btn-pause"     onclick="togglePause()">⏸ Pause</button>
+</div>
+
+<!-- Game over -->
+<div id="overlay">
+  <h2>City Shutdown 😔</h2>
+  <div class="sub">A destination was overwhelmed</div>
+  <div class="big"><span id="go-cars">0</span> cars delivered</div>
+  <div class="sub">Week <span id="go-week">1</span> · <span id="go-days">0</span> days survived</div>
+  <button onclick="location.reload()">Play Again</button>
+</div>
+
+<!-- Week reward -->
+<div id="week-panel">
+  <div class="wp">
+    <h3>End of week</h3>
+    <div class="wn" id="wp-num">1</div>
+    <p>New supplies! Pick one:</p>
+    <div class="rrow" id="rrow"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  ROAD RUSH  —  Complete rewrite
+// ══════════════════════════════════════════════
+
+// ── LOADING SCREEN: DRIFTING CAR ─────────────
+const lcanvas = document.getElementById('loading-canvas');
+const lctx    = lcanvas.getContext('2d');
+let LW, LH;
+function resizeL(){
+  LW = lcanvas.width  = window.innerWidth;
+  LH = lcanvas.height = window.innerHeight;
+}
+resizeL();
+window.addEventListener('resize', resizeL);
+
+const drift = {
+  x: 200, y: 300,
+  vx: 0, vy: 0,
+  angle: 0,        // facing direction
+  targetAngle: 0,
+  speed: 0,
+  trail: [],
+  mx: 400, my: 300  // mouse/touch target
+};
+
+document.addEventListener('mousemove', e => { drift.mx = e.clientX; drift.my = e.clientY; });
+document.addEventListener('touchmove', e => {
+  drift.mx = e.touches[0].clientX;
+  drift.my = e.touches[0].clientY;
+}, {passive:true});
+
+function updateDriftCar(){
+  const dx = drift.mx - drift.x;
+  const dy = drift.my - drift.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+
+  if(dist > 8){
+    drift.targetAngle = Math.atan2(dy, dx);
+    drift.speed = Math.min(dist * 0.08, 7);
+  } else {
+    drift.speed *= 0.92;
+  }
+
+  // Drift: smoothly rotate toward target with a lag (creates drift feel)
+  let da = drift.targetAngle - drift.angle;
+  // Wrap angle
+  while(da >  Math.PI) da -= Math.PI*2;
+  while(da < -Math.PI) da += Math.PI*2;
+  drift.angle += da * 0.12;  // slow turn = drifty
+
+  drift.x += Math.cos(drift.angle) * drift.speed;
+  drift.y += Math.sin(drift.angle) * drift.speed;
+
+  // Skid trail based on sideways velocity
+  const sideways = Math.abs(da) * drift.speed;
+  if(sideways > 0.3 && drift.speed > 1){
+    drift.trail.push({x: drift.x, y: drift.y, a: sideways * 0.3});
+  }
+  if(drift.trail.length > 80) drift.trail.shift();
+}
+
+function drawLoadingCar(){
+  // Clear
+  lctx.fillStyle = '#f5f5f0';
+  lctx.fillRect(0, 0, LW, LH);
+
+  // Skid marks
+  for(let i = 1; i < drift.trail.length; i++){
+    const t = drift.trail[i];
+    const prev = drift.trail[i-1];
+    lctx.globalAlpha = Math.min(t.a * (i/drift.trail.length) * 0.5, 0.25);
+    lctx.strokeStyle = '#ccc';
+    lctx.lineWidth = 3;
+    lctx.lineCap = 'round';
+    lctx.beginPath();
+    lctx.moveTo(prev.x, prev.y);
+    lctx.lineTo(t.x, t.y);
+    lctx.stroke();
+  }
+  lctx.globalAlpha = 1;
+
+  // Car body
+  lctx.save();
+  lctx.translate(drift.x, drift.y);
+  lctx.rotate(drift.angle);
+
+  const W2 = 30, H2 = 18;
+
+  // Shadow
+  lctx.fillStyle = 'rgba(0,0,0,0.13)';
+  rrect(lctx, -W2/2+3, -H2/2+4, W2, H2, 6, true);
+
+  // Body
+  lctx.fillStyle = '#ff5c5c';
+  rrect(lctx, -W2/2, -H2/2, W2, H2, 6, true);
+
+  // Windshield
+  lctx.fillStyle = 'rgba(180,225,255,0.9)';
+  rrect(lctx, W2*0.08, -H2*0.38, W2*0.28, H2*0.76, 3, true);
+
+  // Wheels
+  lctx.fillStyle = '#222';
+  [[-W2*0.25, -H2/2-2],[W2*0.08, -H2/2-2],[-W2*0.25, H2/2-2],[W2*0.08, H2/2-2]]
+    .forEach(([wx,wy]) => lctx.fillRect(wx, wy, W2*0.18, 4));
+
+  lctx.restore();
+}
+
+// ── GAME CANVAS ───────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let W, H;
+function resizeGame(){
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resizeGame();
+window.addEventListener('resize', () => { resizeGame(); if(G) G.rebuild(); });
+
+// ── PALETTE ───────────────────────────────────
+// Each colour pair: [house fill, shop fill, car colour]
+const COLOUR_SETS = [
+  { h:'#ff5c5c', hs:'#c93a3a', s:'#ff5c5c', ss:'#c93a3a', car:'#ff5c5c', name:'Red'    },
+  { h:'#ff9a3c', hs:'#d06e1a', s:'#ff9a3c', ss:'#d06e1a', car:'#ff9a3c', name:'Orange' },
+  { h:'#f7d94c', hs:'#c8a800', s:'#f7d94c', ss:'#c8a800', car:'#f7d94c', name:'Yellow' },
+  { h:'#5bca6e', hs:'#2d8c40', s:'#5bca6e', ss:'#2d8c40', car:'#5bca6e', name:'Green'  },
+  { h:'#4e9fff', hs:'#1a63c8', s:'#4e9fff', ss:'#1a63c8', car:'#4e9fff', name:'Blue'   },
+  { h:'#b57bee', hs:'#7c3cc4', s:'#b57bee', ss:'#7c3cc4', car:'#b57bee', name:'Purple' },
+  { h:'#ff80c0', hs:'#cc3d84', s:'#ff80c0', ss:'#cc3d84', car:'#ff80c0', name:'Pink'   },
+];
+
+// Road visuals
+const ROAD_FILL  = '#f4c2c2';
+const ROAD_EDGE  = '#e89090';
+const MWAY_FILL  = '#ffe08a';
+const MWAY_EDGE  = '#f5c030';
+const BRDG_FILL  = '#b0c8de';
+const BRDG_EDGE  = '#7898b8';
+const WATER_FILL = '#7ecae3';
+const WATER_EDGE = '#5ab5d5';
+const BG         = '#f5f5f0';
+
+// ── GRID ──────────────────────────────────────
+const CELL = 58;
+let COLS, ROWS, OX, OY;
+
+function setupGrid(){
+  COLS = Math.floor((W - 20) / CELL);
+  ROWS = Math.floor((H - 110) / CELL);
+  OX   = Math.floor((W - COLS * CELL) / 2);
+  OY   = 56;
+}
+
+const gx  = c  => OX + c  * CELL + CELL/2;
+const gy  = r  => OY + r  * CELL + CELL/2;
+const gc  = px => Math.floor((px - OX) / CELL);
+const gr  = py => Math.floor((py - OY) / CELL);
+const nk  = (r,c) => `${r},${c}`;
+function ek(r1,c1,r2,c2){
+  const a=nk(r1,c1), b=nk(r2,c2);
+  return a<b ? `${a}|${b}` : `${b}|${a}`;
+}
+function inB(r,c){ return r>=0&&c>=0&&r<ROWS&&c<COLS; }
+
+// ── HELPERS ───────────────────────────────────
+function rrect(ctx,x,y,w,h,r,fill){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+  if(fill) ctx.fill(); else ctx.stroke();
+}
+
+// ── GAME STATE ────────────────────────────────
+let G = null, activeTool='road', gameSpeed=1, isPaused=false, gameRunning=false;
+let dragCells=[], isDragging=false;
+
+class Game {
+  constructor(){
+    setupGrid();
+    this.week      = 1;
+    this.totalDays = 0;
+    this.weekDay   = 0;
+    this.dayTimer  = 0;
+    this.dayLen    = 100/7; // 100 seconds per week
+    this.weekLen   = 7;
+    this.tilesLeft = 40;
+    this.delivered = 0;
+    this.over      = false;
+    this.frame     = 0;
+    this.spawnT    = 0;
+    this.growT     = 28;
+    this.particles = [];
+    this.roads     = new Map();   // edgeKey → {type}
+    this.adj       = new Map();   // nodeKey → Set<nodeKey>
+    this.buildings = [];          // {id,type,colIdx,row,col,...}
+    this.vehicles  = [];
+    this.rivers    = [];
+
+    // Generate rivers (1–2 horizontal strips)
+    const numRivers = Math.floor(Math.random()*2)+1;
+    for(let i=0;i<numRivers;i++){
+      const r = 2 + Math.floor(Math.random()*(ROWS-4));
+      this.rivers.push({r, c0:0, c1:COLS-1});
+    }
+
+    // Seed buildings — ensure each colour gets 1 house + 1 shop
+    // Place pairs spaced apart
+    const pairs = [
+      [2,2, ROWS-3,COLS-3],
+      [2,COLS-3, ROWS-3,2],
+    ];
+    pairs.forEach(([hr,hc,sr,sc],i)=>{
+      if(i < COLOUR_SETS.length){
+        this._placeBuilding('house',hr,hc,i);
+        this._placeBuilding('shop', sr,sc,i);
+      }
+    });
+    // A third pair in the centre area
+    this._placeBuilding('house', Math.floor(ROWS/2)-1, 2, 2);
+    this._placeBuilding('shop',  Math.floor(ROWS/2)-1, COLS-3, 2);
+  }
+
+  rebuild(){ setupGrid(); }
+
+  // ── BUILDINGS ────────────────────────────────
+  _placeBuilding(type, row, col, colIdx, force){
+    if(!inB(row,col)) return false;
+    if(!force && this._bAt(row,col)) return false;
+    this.buildings.push({
+      id: Math.random().toString(36).slice(2),
+      type, row, col, colIdx,
+      demand:       type==='shop'||type==='imax' ? 2 : 0,
+      maxDemand:    type==='imax' ? 15 : type==='shop' ? 10 : 0,
+      overflowOn:   false,
+      overflowT:    10,
+      pulse:        0,
+      spawnReady:   type==='house',
+      spawnT:       6 + Math.random()*8,
+      upgrading:    false,
+      upgradeT:     0,
+    });
+    return true;
+  }
+  _bAt(r,c){ return this.buildings.find(b=>b.row===r&&b.col===c); }
+
+  // Find all buildings of a type+colour
+  _bOfType(type,ci){ return this.buildings.filter(b=>b.type===type&&b.colIdx===ci); }
+
+  // ── ROADS ─────────────────────────────────────
+  _crossesRiver(r1,c1,r2,c2){
+    if(r1===r2) return false; // horizontal edge, no river crossing
+    const mn=Math.min(r1,r2), mx=Math.max(r1,r2), c=c1;
+    return this.rivers.some(rv=> rv.r>mn && rv.r<mx && c>=rv.c0 && c<=rv.c1);
+  }
+
+  addRoad(r1,c1,r2,c2,type){
+    if(Math.abs(r1-r2)>1||Math.abs(c1-c2)>1||r1===r2&&c1===c2) return false;
+    const key=ek(r1,c1,r2,c2);
+    if(this.roads.has(key)) return false;
+    if(type!=='bridge'&&this._crossesRiver(r1,c1,r2,c2)) return 'bridge';
+    this.roads.set(key,{type});
+    const a=nk(r1,c1), b=nk(r2,c2);
+    if(!this.adj.has(a)) this.adj.set(a,new Set());
+    if(!this.adj.has(b)) this.adj.set(b,new Set());
+    this.adj.get(a).add(b);
+    this.adj.get(b).add(a);
+    return true;
+  }
+
+  removeRoad(r1,c1,r2,c2){
+    const key=ek(r1,c1,r2,c2);
+    if(!this.roads.has(key)) return false;
+    this.roads.delete(key);
+    const a=nk(r1,c1), b=nk(r2,c2);
+    this.adj.get(a)?.delete(b);
+    this.adj.get(b)?.delete(a);
+    return true;
+  }
+
+  _neighbors(r,c){
+    const s=this.adj.get(nk(r,c));
+    if(!s) return [];
+    return [...s].map(k=>{const[rr,cc]=k.split(',').map(Number);return{r:rr,c:cc};});
+  }
+
+  // ── BFS ─────────────────────────────────────
+  _path(sr,sc,tr,tc){
+    if(sr===tr&&sc===tc) return [];
+    const vis=new Set([nk(sr,sc)]);
+    const q=[[sr,sc,[{r:sr,c:sc}]]];
+    while(q.length){
+      const[r,c,path]=q.shift();
+      for(const n of this._neighbors(r,c)){
+        const k=nk(n.r,n.c);
+        if(vis.has(k)) continue;
+        const np=[...path,n];
+        if(n.r===tr&&n.c===tc) return np;
+        vis.add(k); q.push([n.r,n.c,np]);
+      }
+    }
+    return null;
+  }
+
+  // ── SPAWN ────────────────────────────────────
+  _spawnVehicle(){
+    if(this.vehicles.length>=28) return;
+    // For each colour, try to send a car from a ready house to its shop
+    const cis=[...new Set(this.buildings.map(b=>b.colIdx))];
+    for(const ci of cis.sort(()=>Math.random()-0.5)){
+      const houses=this.buildings.filter(b=>b.type==='house'&&b.colIdx===ci&&b.spawnReady);
+      const dests =this.buildings.filter(b=>(b.type==='shop'||b.type==='imax')&&b.colIdx===ci&&b.demand>0);
+      for(const h of houses){
+        for(const d of dests){
+          const path=this._path(h.row,h.col,d.row,d.col);
+          if(path&&path.length>1){
+            const isMway=this.roads.get(ek(path[0].r,path[0].c,path[1].r,path[1].c))?.type==='motorway';
+            const col=COLOUR_SETS[ci]||COLOUR_SETS[0];
+            this.vehicles.push({
+              id:Math.random().toString(36).slice(2),
+              colIdx:ci, path, pidx:1,
+              x:gx(h.col), y:gy(h.row),
+              tx:gx(path[1].c), ty:gy(path[1].r),
+              angle:Math.random()*Math.PI*2,
+              carColor:col.car,
+              speed:isMway?145:82,
+              dst:d, done:false,
+            });
+            h.spawnReady=false;
+            h.spawnT=10+Math.random()*8;
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  // ── UPDATE ────────────────────────────────────
+  update(dt){
+    if(this.over||isPaused) return;
+    dt*=gameSpeed;
+    this.frame++;
+    this.dayTimer+=dt;
+    this.spawnT+=dt;
+    this.growT-=dt;
+
+    // Day
+    if(this.dayTimer>=this.dayLen){
+      this.dayTimer-=this.dayLen;
+      this.totalDays++;
+      this.weekDay++;
+      this.buildings.filter(b=>b.type==='house').forEach(b=>b.spawnReady=true);
+      if(this.weekDay>=this.weekLen){ this.weekDay=0; this._newWeek(); }
+    }
+
+    // Spawn
+    if(this.spawnT>2.8){ this.spawnT=0; this._spawnVehicle(); }
+
+    // City grow
+    if(this.growT<=0){
+      this.growT=Math.max(14,30-this.week*2);
+      this._grow();
+    }
+
+    // Buildings
+    this.buildings.forEach(b=>{
+      b.pulse=Math.max(0,b.pulse-dt*3);
+      if(b.type==='house'){
+        b.spawnT-=dt;
+        if(b.spawnT<=0){b.spawnReady=true;b.spawnT=10+Math.random()*8;}
+      }
+      if(b.type==='shop'||b.type==='imax'){
+        // Demand slowly climbs
+        const rate=(b.type==='imax'?0.055:0.035)*this.week;
+        b.demand=Math.min(b.maxDemand,b.demand+dt*rate);
+
+        // Overflow at >10
+        if(b.demand>=10&&!b.overflowOn){
+          b.overflowOn=true; b.overflowT=10;
+        }
+        if(b.overflowOn){
+          b.overflowT=Math.max(0,b.overflowT-dt);
+          if(b.overflowT<=0){ this._gameOver(); return; }
+          if(b.demand<10){ b.overflowOn=false; b.overflowT=10; }
+        }
+
+        // Shop → iMax upgrade
+        if(b.type==='shop'&&b.demand>=b.maxDemand&&!b.upgrading){
+          b.upgrading=true; b.upgradeT=2.5;
+        }
+        if(b.upgrading){
+          b.upgradeT-=dt;
+          if(b.upgradeT<=0){
+            b.type='imax'; b.demand=6; b.maxDemand=15;
+            b.upgrading=false;
+            this._burst(gx(b.col),gy(b.row),'#b57bee',14);
+          }
+        }
+      }
+    });
+
+    // Vehicles
+    this.vehicles.forEach(v=>{
+      if(v.done) return;
+      const dx=v.tx-v.x, dy=v.ty-v.y;
+      const dist=Math.sqrt(dx*dx+dy*dy)||1;
+
+      // Get road type for speed
+      const cur=v.path[v.pidx-1]||v.path[0];
+      const nxt=v.path[v.pidx]||cur;
+      const rt=this.roads.get(ek(cur.r,cur.c,nxt.r,nxt.c));
+      const spd=(rt?.type==='motorway')?148:82;
+
+      const step=spd*dt;
+
+      // Smooth angle (drift effect)
+      const ta=Math.atan2(dy,dx);
+      let da=ta-v.angle;
+      while(da> Math.PI) da-=Math.PI*2;
+      while(da<-Math.PI) da+=Math.PI*2;
+      v.angle+=da*Math.min(1,dt*6);
+
+      if(dist<=step+0.5){
+        v.x=v.tx; v.y=v.ty;
+        v.pidx++;
+        if(v.pidx>=v.path.length){ v.done=true; this._arrive(v); return; }
+        v.tx=gx(v.path[v.pidx].c);
+        v.ty=gy(v.path[v.pidx].r);
+      } else {
+        v.x+=Math.cos(v.angle)*step;
+        v.y+=Math.sin(v.angle)*step;
+      }
+    });
+    this.vehicles=this.vehicles.filter(v=>!v.done);
+
+    // Particles
+    this.particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=55*dt;p.life-=dt*2;});
+    this.particles=this.particles.filter(p=>p.life>0);
+
+    updateHUD();
+  }
+
+  _arrive(v){
+    const b=v.dst;
+    b.demand=Math.max(0,b.demand-1);
+    b.pulse=1;
+    if(b.demand<10) b.overflowOn=false;
+    this.delivered++;
+    this._burst(v.x,v.y,v.carColor,7);
+  }
+
+  _burst(x,y,col,n){
+    for(let i=0;i<n;i++){
+      const a=Math.random()*Math.PI*2, s=45+Math.random()*70;
+      this.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-35,color:col,life:1,r:2+Math.random()*3});
+    }
+  }
+
+  _grow(){
+    // Add a new colour-matched house+shop pair occasionally, or just a house
+    const existingCIs=[...new Set(this.buildings.map(b=>b.colIdx))];
+    // Sometimes introduce a new colour
+    const newCI = existingCIs.length < COLOUR_SETS.length && Math.random()<0.3
+      ? existingCIs.length : existingCIs[Math.floor(Math.random()*existingCIs.length)];
+
+    const placed=this._rndPlace('house',newCI);
+    if(placed && !this._bOfType('shop',newCI).length){
+      this._rndPlace('shop',newCI);
+    } else if(Math.random()<0.4){
+      this._rndPlace('shop',newCI);
+    }
+  }
+
+  _rndPlace(type,ci){
+    for(let i=0;i<50;i++){
+      const r=1+Math.floor(Math.random()*(ROWS-2));
+      const c=1+Math.floor(Math.random()*(COLS-2));
+      if(!this._isRiverCell(r,c)&&this._placeBuilding(type,r,c,ci)) return true;
+    }
+    return false;
+  }
+
+  _isRiverCell(r,c){ return this.rivers.some(rv=>rv.r===r&&c>=rv.c0&&c<=rv.c1); }
+  _crossesRiverEdge(r1,c1,r2,c2){ return this._crossesRiver(r1,c1,r2,c2); }
+
+  _newWeek(){
+    this.week++;
+    document.getElementById('week-panel').style.display='flex';
+    isPaused=true;
+    this._weekRewards();
+  }
+
+  _weekRewards(){
+    document.getElementById('wp-num').textContent='Week '+this.week;
+    const opts=[
+      {icon:'🛣️',label:'+12 Road Tiles', fn:()=>{this.tilesLeft+=12;}},
+      {icon:'🌉',label:'+6 Bridge Tiles', fn:()=>{this.tilesLeft+=6;}},
+      {icon:'🏎️',label:'+8 Motorway',     fn:()=>{this.tilesLeft+=8;}},
+      {icon:'⚡',label:'Faster Cars',     fn:()=>{gameSpeed=Math.min(gameSpeed+0.5,3);}},
+    ];
+    const picks=opts.sort(()=>Math.random()-0.5).slice(0,3);
+    const row=document.getElementById('rrow');
+    row.innerHTML='';
+    picks.forEach(o=>{
+      const d=document.createElement('div');
+      d.className='rc';
+      d.innerHTML=`<div class="ri">${o.icon}</div><div class="rl">${o.label}</div>`;
+      d.onclick=()=>{
+        o.fn();
+        document.getElementById('week-panel').style.display='none';
+        isPaused=false;
+        updateHUD();
+      };
+      row.appendChild(d);
+    });
+  }
+
+  _gameOver(){
+    if(this.over) return;
+    this.over=true;
+    document.getElementById('go-cars').textContent=this.delivered;
+    document.getElementById('go-week').textContent=this.week;
+    document.getElementById('go-days').textContent=this.totalDays;
+    document.getElementById('overlay').style.display='flex';
+  }
+
+  // ── DRAW ─────────────────────────────────────
+  draw(){
+    // Background
+    ctx.fillStyle=BG;
+    ctx.fillRect(0,0,W,H);
+
+    // Grid dots
+    ctx.fillStyle='rgba(0,0,0,0.05)';
+    for(let r=0;r<=ROWS;r++)
+      for(let c=0;c<=COLS;c++){
+        ctx.beginPath();
+        ctx.arc(OX+c*CELL,OY+r*CELL,2,0,Math.PI*2);
+        ctx.fill();
+      }
+
+    // Rivers
+    this.rivers.forEach(rv=>{
+      const rx=OX+rv.c0*CELL, rw=(rv.c1-rv.c0+1)*CELL;
+      const ry=OY+rv.r*CELL;
+      ctx.fillStyle=WATER_FILL;
+      ctx.fillRect(rx,ry,rw,CELL);
+      ctx.strokeStyle=WATER_EDGE; ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(rx,ry);ctx.lineTo(rx+rw,ry);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(rx,ry+CELL);ctx.lineTo(rx+rw,ry+CELL);ctx.stroke();
+      // Ripples
+      ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=1.5;
+      for(let x=rx+22;x<rx+rw-16;x+=38){
+        ctx.beginPath();
+        ctx.moveTo(x,ry+CELL*0.35);
+        ctx.quadraticCurveTo(x+10,ry+CELL*0.26,x+20,ry+CELL*0.35);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x+5,ry+CELL*0.65);
+        ctx.quadraticCurveTo(x+15,ry+CELL*0.56,x+25,ry+CELL*0.65);
+        ctx.stroke();
+      }
+    });
+
+    // Roads
+    this._drawRoads();
+
+    // Buildings
+    this.buildings.forEach(b=>this._drawB(b));
+
+    // Vehicles
+    this.vehicles.forEach(v=>this._drawV(v));
+
+    // Particles
+    this.particles.forEach(p=>{
+      ctx.globalAlpha=p.life;
+      ctx.fillStyle=p.color;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+    });
+    ctx.globalAlpha=1;
+
+    // Overflow timers
+    this.buildings.forEach(b=>{
+      if(b.overflowOn) this._drawTimer(b);
+    });
+
+    // Drag preview
+    if(isDragging&&dragCells.length>1) this._drawDrag();
+  }
+
+  _drawRoads(){
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    this.roads.forEach((road,key)=>{
+      const [pa,pb]=key.split('|');
+      const [r1,c1]=pa.split(',').map(Number);
+      const [r2,c2]=pb.split(',').map(Number);
+      const x1=gx(c1),y1=gy(r1),x2=gx(c2),y2=gy(r2);
+      const t=road.type;
+      const isM=t==='motorway', isB=t==='bridge';
+      const fill=isM?MWAY_FILL:isB?BRDG_FILL:ROAD_FILL;
+      const edge=isM?MWAY_EDGE:isB?BRDG_EDGE:ROAD_EDGE;
+      const thick=isM?CELL*0.42:CELL*0.36;
+
+      // Shadow
+      ctx.strokeStyle='rgba(0,0,0,0.07)'; ctx.lineWidth=thick+5;
+      ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+
+      // Body
+      ctx.strokeStyle=fill; ctx.lineWidth=thick;
+      ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+
+      // Side lines
+      const nx=-(y2-y1),ny=x2-x1;
+      const len=Math.sqrt(nx*nx+ny*ny)||1;
+      const off=thick/2;
+      ctx.strokeStyle=edge; ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(x1+nx/len*off,y1+ny/len*off);ctx.lineTo(x2+nx/len*off,y2+ny/len*off);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x1-nx/len*off,y1-ny/len*off);ctx.lineTo(x2-nx/len*off,y2-ny/len*off);ctx.stroke();
+
+      // Motorway dash
+      if(isM){
+        ctx.strokeStyle='rgba(255,255,255,0.65)'; ctx.lineWidth=2;
+        ctx.setLineDash([9,9]);
+        ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      // Bridge railings
+      if(isB){
+        ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.5;
+        ctx.setLineDash([5,7]);
+        [[nx/len*off,ny/len*off],[-nx/len*off,-ny/len*off]].forEach(([ox,oy])=>{
+          ctx.beginPath();ctx.moveTo(x1+ox,y1+oy);ctx.lineTo(x2+ox,y2+oy);ctx.stroke();
+        });
+        ctx.setLineDash([]);
+      }
+    });
+  }
+
+  _drawB(b){
+    const x=gx(b.col), y=gy(b.row);
+    const cs=COLOUR_SETS[b.colIdx]||COLOUR_SETS[0];
+    const s=CELL*0.33;
+    const p=b.pulse;
+
+    ctx.save();
+    ctx.translate(x,y);
+    if(p>0) ctx.scale(1+p*0.14,1+p*0.14);
+
+    if(b.type==='house'){
+      // Simple house: square body + triangle roof, solid colour
+      // Shadow
+      ctx.fillStyle='rgba(0,0,0,0.12)';
+      ctx.fillRect(-s+3,-s*0.3+4,s*2,s*1.3);
+
+      // Body
+      ctx.fillStyle=cs.h;
+      ctx.fillRect(-s,-s*0.3,s*2,s*1.3);
+
+      // Roof
+      ctx.fillStyle=cs.hs;
+      ctx.beginPath();
+      ctx.moveTo(-s*1.15,-s*0.3);
+      ctx.lineTo(0,-s*1.15);
+      ctx.lineTo(s*1.15,-s*0.3);
+      ctx.closePath();
+      ctx.fill();
+
+      // Small window dot (white circle)
+      ctx.fillStyle='rgba(255,255,255,0.8)';
+      ctx.beginPath();ctx.arc(-s*0.35,s*0.15,s*0.22,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(s*0.35,s*0.15,s*0.22,0,Math.PI*2);ctx.fill();
+
+    } else if(b.type==='shop'){
+      // Simple shop: rectangle with colour top band
+      ctx.fillStyle='rgba(0,0,0,0.12)';
+      ctx.fillRect(-s+3,-s+4,s*2,s*2);
+
+      ctx.fillStyle=cs.s;
+      ctx.fillRect(-s,-s,s*2,s*2);
+
+      // Darker top banner
+      ctx.fillStyle=cs.ss;
+      ctx.fillRect(-s,-s,s*2,s*0.55);
+
+      // White windows
+      ctx.fillStyle='rgba(255,255,255,0.75)';
+      ctx.fillRect(-s*0.62,-s*0.55,s*0.52,s*0.6);
+      ctx.fillRect(s*0.1,-s*0.55,s*0.52,s*0.6);
+      ctx.fillRect(-s*0.62,s*0.18,s*0.52,s*0.5);
+      ctx.fillRect(s*0.1,s*0.18,s*0.52,s*0.5);
+
+    } else if(b.type==='imax'){
+      // iMax: large circle with colour
+      const grd=ctx.createRadialGradient(0,0,s*0.2,0,0,s*1.35);
+      grd.addColorStop(0,cs.s+'44');
+      grd.addColorStop(1,cs.s+'00');
+      ctx.fillStyle=grd;
+      ctx.beginPath();ctx.arc(0,0,s*1.35,0,Math.PI*2);ctx.fill();
+
+      // Shadow circle
+      ctx.fillStyle='rgba(0,0,0,0.13)';
+      ctx.beginPath();ctx.arc(4,6,s,0,Math.PI*2);ctx.fill();
+
+      // Main circle
+      ctx.fillStyle=cs.s;
+      ctx.beginPath();ctx.arc(0,0,s,0,Math.PI*2);ctx.fill();
+
+      // Inner ring
+      ctx.strokeStyle=cs.ss; ctx.lineWidth=3.5;
+      ctx.beginPath();ctx.arc(0,0,s*0.74,0,Math.PI*2);ctx.stroke();
+
+      // Label
+      ctx.fillStyle='rgba(255,255,255,0.92)';
+      ctx.font=`bold ${s*0.46}px Segoe UI`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('iMax',0,0);
+    }
+
+    ctx.restore();
+
+    // Demand bar for shops/imax
+    if(b.type==='shop'||b.type==='imax'){
+      const bw=CELL*0.68, bh=4;
+      const bx=x-bw/2, by=y+CELL*0.42;
+      ctx.fillStyle='rgba(0,0,0,0.09)';
+      rrect(ctx,bx,by,bw,bh,2,true);
+      const frac=b.demand/b.maxDemand;
+      ctx.fillStyle=frac>0.7?'#ef4444':frac>0.4?'#f59e0b':cs.s;
+      rrect(ctx,bx,by,bw*frac,bh,2,true);
+
+      // Demand number
+      ctx.font=`bold ${CELL*0.2}px Segoe UI`;
+      ctx.fillStyle='#444';
+      ctx.textAlign='center'; ctx.textBaseline='top';
+      ctx.fillText(Math.ceil(b.demand), x, by+bh+2);
+    }
+
+    // Colour dot label (top-right of building)
+    const cs2=COLOUR_SETS[b.colIdx]||COLOUR_SETS[0];
+    ctx.fillStyle=cs2.h;
+    ctx.beginPath();ctx.arc(x+CELL*0.28,gy(b.row)-CELL*0.42,4,0,Math.PI*2);ctx.fill();
+  }
+
+  _drawV(v){
+    ctx.save();
+    ctx.translate(v.x,v.y);
+    ctx.rotate(v.angle);
+
+    const vw=CELL*0.28, vh=CELL*0.17;
+
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.13)';
+    rrect(ctx,-vw/2+2,-vh/2+3,vw,vh,4,true);
+
+    // Body — solid colour matching house/shop
+    ctx.fillStyle=v.carColor;
+    rrect(ctx,-vw/2,-vh/2,vw,vh,4,true);
+
+    // Windshield (light blue)
+    ctx.fillStyle='rgba(190,230,255,0.88)';
+    rrect(ctx,vw*0.09,-vh*0.38,vw*0.26,vh*0.76,2,true);
+
+    // Wheels (dark)
+    ctx.fillStyle='rgba(30,30,30,0.7)';
+    [[-vw*0.26,-vh/2-2],[vw*0.1,-vh/2-2],[-vw*0.26,vh/2-2],[vw*0.1,vh/2-2]]
+      .forEach(([wx,wy])=>ctx.fillRect(wx,wy,vw*0.16,4));
+
+    ctx.restore();
+  }
+
+  _drawTimer(b){
+    const x=gx(b.col), y=gy(b.row)-CELL*0.98;
+    const t=b.overflowT;
+    const frac=t/10;
+    const urgent=t<4;
+    const flash=urgent&&(this.frame%18<9);
+
+    // Pill
+    ctx.fillStyle=flash?'#ef4444':'#fff';
+    ctx.shadowColor=urgent?'#ef4444':'#f59e0b';
+    ctx.shadowBlur=urgent?14:6;
+    rrect(ctx,x-26,y-14,52,26,13,true);
+    ctx.shadowBlur=0;
+
+    // Arc
+    ctx.strokeStyle=urgent?'#ef4444':'#f59e0b';
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.arc(x-9,y-0,9,-Math.PI/2,-Math.PI/2+Math.PI*2*frac);
+    ctx.stroke();
+
+    // Text
+    ctx.fillStyle=flash?'#fff':'#222';
+    ctx.font=`bold 13px Segoe UI`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(Math.ceil(t)+'s',x+9,y);
+  }
+
+  _drawDrag(){
+    const fill=activeTool==='motorway'?'rgba(255,224,100,0.55)':
+               activeTool==='bridge'?'rgba(176,200,230,0.55)':
+               'rgba(244,194,194,0.55)';
+    ctx.strokeStyle=fill; ctx.lineWidth=CELL*0.34;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.setLineDash([10,9]);
+    ctx.beginPath();
+    dragCells.forEach(([r,c],i)=>{
+      if(i===0) ctx.moveTo(gx(c),gy(r)); else ctx.lineTo(gx(c),gy(r));
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+// ── HUD ───────────────────────────────────────
+function updateHUD(){
+  if(!G) return;
+  document.getElementById('hud-cars').textContent=G.delivered;
+  document.getElementById('hud-week').textContent=G.week;
+  document.getElementById('hud-tiles').textContent=G.tilesLeft;
+  document.getElementById('hud-speed').textContent=gameSpeed+'×';
+}
+
+// ── TOOL / CONTROLS ───────────────────────────
+function setTool(t){
+  activeTool=t;
+  document.querySelectorAll('.tbtn').forEach(b=>b.classList.remove('on'));
+  document.getElementById('btn-'+t)?.classList.add('on');
+}
+
+function cycleSpeed(){
+  const s=[1,1.5,2,3];
+  gameSpeed=s[(s.indexOf(gameSpeed)+1)%s.length];
+  updateHUD();
+}
+
+function togglePause(){
+  isPaused=!isPaused;
+  document.getElementById('btn-pause').textContent=isPaused?'▶ Resume':'⏸ Pause';
+}
+
+// ── INPUT ─────────────────────────────────────
+function pos(e){ const t=e.touches?e.touches[0]:e; return {x:t.clientX,y:t.clientY}; }
+
+function onDown(e){
+  e.preventDefault();
+  if(!G||isPaused) return;
+  const {x,y}=pos(e);
+  const r=gr(y), c=gc(x);
+  if(!inB(r,c)) return;
+  isDragging=true; dragCells=[[r,c]];
+}
+function onMove(e){
+  e.preventDefault();
+  // Always update loading car mouse
+  if(!gameRunning){ const p=pos(e); drift.mx=p.x; drift.my=p.y; return; }
+  if(!isDragging||!G) return;
+  const {x,y}=pos(e);
+  const r=gr(y), c=gc(x);
+  if(!inB(r,c)) return;
+  const last=dragCells[dragCells.length-1];
+  if(!last||last[0]===r&&last[1]===c) return;
+  if(Math.abs(last[0]-r)<=1&&Math.abs(last[1]-c)<=1) dragCells.push([r,c]);
+}
+function onUp(e){
+  e.preventDefault();
+  if(!isDragging||!G){ isDragging=false; dragCells=[]; return; }
+  isDragging=false;
+  if(dragCells.length<2){ dragCells=[]; return; }
+
+  if(activeTool==='delete'){
+    for(let i=0;i<dragCells.length-1;i++){
+      const[r1,c1]=dragCells[i],[r2,c2]=dragCells[i+1];
+      if(G.removeRoad(r1,c1,r2,c2)) G.tilesLeft++;
+    }
+  } else {
+    for(let i=0;i<dragCells.length-1;i++){
+      if(G.tilesLeft<=0){ toast('No tiles left!'); break; }
+      const[r1,c1]=dragCells[i],[r2,c2]=dragCells[i+1];
+      const res=G.addRoad(r1,c1,r2,c2,activeTool);
+      if(res===true) G.tilesLeft--;
+      else if(res==='bridge') toast('🌉 Use Bridge to cross the river!');
+    }
+  }
+  dragCells=[];
+  updateHUD();
+}
+
+canvas.addEventListener('mousedown',onDown);
+canvas.addEventListener('touchstart',onDown,{passive:false});
+document.addEventListener('mousemove',e=>{ onMove(e); if(!gameRunning){const p=pos(e);drift.mx=p.x;drift.my=p.y;} });
+document.addEventListener('touchmove',onMove,{passive:false});
+canvas.addEventListener('mouseup',onUp);
+canvas.addEventListener('touchend',onUp,{passive:false});
+canvas.addEventListener('contextmenu',e=>{e.preventDefault();setTool('delete');});
+
+// ── TOAST ─────────────────────────────────────
+let _toastEl;
+function toast(msg){
+  if(!_toastEl){
+    _toastEl=document.createElement('div');
+    _toastEl.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);color:#fff;border-radius:20px;padding:8px 22px;font-size:13px;z-index:300;pointer-events:none;transition:opacity .25s;white-space:nowrap';
+    document.body.appendChild(_toastEl);
+  }
+  _toastEl.textContent=msg;
+  _toastEl.style.opacity='1';
+  clearTimeout(_toastEl._t);
+  _toastEl._t=setTimeout(()=>_toastEl.style.opacity='0',2400);
+}
+
+// ── START ─────────────────────────────────────
+function startGame(){
+  document.getElementById('loading').style.display='none';
+  document.getElementById('hud').style.display='flex';
+  document.getElementById('ctrl').style.display='flex';
+  gameRunning=true;
+  G=new Game();
+  updateHUD();
+  toast('Connect same-colour houses → shops!');
+}
+
+// ── MAIN LOOP ─────────────────────────────────
+let lastT=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt=Math.min((ts-lastT)/1000,0.05);
+  lastT=ts;
+
+  if(!gameRunning){
+    // Loading screen
+    updateDriftCar();
+    drawLoadingCar();
+    return;
+  }
+
+  if(G){ G.update(dt); G.draw(); }
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
+ENDOFFILE
+echo "Done — $(wc -c < /mnt/user-data/outputs/road-rush-3.html) bytes, $(wc -l < /mnt/user-data/outputs/road-rush-3.html) lines"
