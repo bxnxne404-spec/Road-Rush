@@ -59,8 +59,8 @@ canvas{display:block}
   <div class="chip">🚗 <span id="hud-cars">0</span></div>
   <div class="chip">📅 Week <span id="hud-week">1</span></div>
   <div class="chip">🛣️ <span id="hud-roads">80</span></div>
-  <div class="chip">🌉 <span id="hud-bridges">1</span></div>
-  <div class="chip">🏎️ <span id="hud-motorways">0</span></div>
+  <div class="chip">🌉 <span id="hud-bridges">30</span></div>
+  <div class="chip">🏎️ <span id="hud-motorways">1</span></div>
   <div class="chip clickable" onclick="cycleSpeed()">⏩ <span id="hud-speed">1×</span></div>
 </div>
 
@@ -76,7 +76,7 @@ canvas{display:block}
 <!-- Game over -->
 <div id="overlay">
   <h2>City Shutdown 😔</h2>
-  <div class="sub">A destination was overwhelmed</div>
+  <div class="sub">Not enough cars reached a destination in time</div>
   <div class="big"><span id="go-cars">0</span> cars delivered</div>
   <div class="sub">Week <span id="go-week">1</span> · <span id="go-days">0</span> days survived</div>
   <button onclick="location.reload()">Play Again</button>
