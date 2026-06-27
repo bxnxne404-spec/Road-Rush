@@ -59,8 +59,8 @@ canvas{display:block}
   <div class="chip">🚗 <span id="hud-cars">0</span></div>
   <div class="chip">📅 Week <span id="hud-week">1</span></div>
   <div class="chip">🛣️ <span id="hud-roads">80</span></div>
-  <div class="chip">🌉 <span id="hud-bridges">0</span></div>
-  <div class="chip">🏎️ <span id="hud-motorways">0</span></div>
+  <div class="chip">🌉 <span id="hud-bridges">40</span></div>
+  <div class="chip">🏎️ <span id="hud-motorways">1</span></div>
   <div class="chip clickable" onclick="cycleSpeed()">⏩ <span id="hud-speed">1×</span></div>
 </div>
 
@@ -75,9 +75,9 @@ canvas{display:block}
 
 <!-- Game over -->
 <div id="overlay">
-  <h2>City Shutdown 😔</h2>
-  <div class="sub">A destination was overwhelmed</div>
-  <div class="big"><span id="go-cars">0</span> cars delivered</div>
+  <h2>City Shutdown</h2>
+  <div class="sub">Not enough cars reached their destination in time</div>
+  <div class="big"><span id="go-cars">0</span> Journeys Made</div>
   <div class="sub">Week <span id="go-week">1</span> · <span id="go-days">0</span> days survived</div>
   <button onclick="location.reload()">Play Again</button>
 </div>
@@ -1412,7 +1412,7 @@ function loop(ts){
 requestAnimationFrame(loop);
 </script>
 <div id="dev-score" style="position:fixed;bottom:8px;right:12px;z-index:9999;font-weight:700;font-family:Segoe UI,sans-serif;color:#333;background:rgba(255,255,255,0.9);padding:4px 8px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.15);">
-  DEV'S SCORE: 853
+  DEV'S SCORE: 2134
 </div>
 </body>
 </html>
